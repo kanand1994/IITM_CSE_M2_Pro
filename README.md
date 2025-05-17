@@ -1,7 +1,9 @@
 # IITM_CSE_M2_Pro
 
 📁 Repository Structure
+
 IITM_CSE_M2_Pro/
+
 ├── TSP/                # Solutions and implementations for the Travelling Salesman Problem
 
 
@@ -33,7 +35,7 @@ Understanding of algorithms and problem-solving techniques
 
 Interest in topics such as graph theory and combinatorics
 
-# Packages required
+### Packages required
 
 pip install -r requirements.txt
 
