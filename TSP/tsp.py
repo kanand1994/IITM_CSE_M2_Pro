@@ -149,16 +149,98 @@ def select_city(cities: List[Place]) -> Optional[Place]:
             print("Please enter a valid number.")
 
 def handle_city_places(city: Place) -> List[Place]:
-    city_file = Path(sanitize_filename(city.name) + "_places.csv")
+    """Handle city places with validation and correction"""
+    base_dir = Path("tourist_spots")
+    city_file = base_dir / f"{sanitize_filename(city.name)}.csv"
     
-    if city_file.exists():
-        print(f"\nLoading existing places for {city.name}")
-        return load_places(city_file)
+    if not city_file.exists():
+        print(f"\nCity file not found: {city_file}")
+        print("Please create a CSV file with columns: Name,Lat,Lon")
+        return None
+
+    while True:
+        places, invalid_indices = load_and_validate_places(city_file)
+        
+        if not invalid_indices:
+            return places
+            
+        print(f"\nFound {len(invalid_indices)} invalid entries in {city_file.name}")
+        print("Please correct the invalid coordinates:")
+        places = correct_invalid_entries(city_file, places, invalid_indices)
+        
+        # Reload to verify corrections
+        places, invalid_indices = load_and_validate_places(city_file)
+        if not invalid_indices:
+            return places
+        print("Still invalid entries found after correction. Let's try again.")
+def load_and_validate_places(path: Path) -> Tuple[List[Place], List[int]]:
+    """Load places and validate coordinates"""
+    places = []
+    invalid_indices = []
     
-    print(f"\nGenerating new places for {city.name}")
-    places = generate_landmarks(city)
-    save_places(city_file, places)
-    return places
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            header = next(reader, None)  # Skip header
+            
+            for idx, row in enumerate(reader):
+                if len(row) < 3:
+                    invalid_indices.append(idx+1)
+                    continue
+                    
+                try:
+                    lat = float(row[1])
+                    lon = float(row[2])
+                    if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+                        invalid_indices.append(idx+1)
+                        places.append(Place(row[0], lat, lon))
+                    else:
+                        places.append(Place(row[0], lat, lon))
+                except ValueError:
+                    invalid_indices.append(idx+1)
+                    places.append(Place(row[0], 0, 0))  # Temporary invalid coords
+
+        return places, invalid_indices
+    except Exception as e:
+        print(f"Error loading places: {str(e)}")
+        return [], []
+
+def correct_invalid_entries(path: Path, places: List[Place], invalid_indices: List[int]) -> List[Place]:
+    """Interactive correction of invalid entries"""
+    corrected = []
+    
+    with open(path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Name', 'Lat', 'Lon'])
+        
+        for idx, place in enumerate(places):
+            line_num = idx + 2  # Account for header row
+            if line_num in invalid_indices:
+                print(f"\nCorrecting entry {idx+1}: {place.name}")
+                print(f"Current coordinates: {place.lat}, {place.lon}")
+                
+                new_lat = get_valid_coordinate("Enter new latitude (-90 to 90): ", -90, 90)
+                new_lon = get_valid_coordinate("Enter new longitude (-180 to 180): ", -180, 180)
+                
+                writer.writerow([place.name, new_lat, new_lon])
+                corrected.append(Place(place.name, new_lat, new_lon))
+            else:
+                writer.writerow([place.name, place.lat, place.lon])
+                corrected.append(place)
+    
+    print(f"\nUpdated {len(invalid_indices)} entries in {path.name}")
+    return corrected
+
+def get_valid_coordinate(prompt: str, min_val: float, max_val: float) -> float:
+    """Get validated coordinate input"""
+    while True:
+        try:
+            value = float(input(prompt))
+            if min_val <= value <= max_val:
+                return value
+            print(f"Value must be between {min_val} and {max_val}")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
 
 def generate_landmarks(city: Place, num=50) -> List[Place]:
     places = [Place(f"{city.name} Center", city.lat, city.lon)]
